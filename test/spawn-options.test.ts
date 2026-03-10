@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildAgentSpawnOptions } from "../src/client.js";
+import { buildAgentSpawnOptions, buildSpawnCommandOptions } from "../src/client.js";
 import { buildQueueOwnerSpawnOptions } from "../src/session-runtime/queue-owner-process.js";
 import { buildTerminalSpawnOptions } from "../src/terminal.js";
 
@@ -35,4 +35,36 @@ test("buildQueueOwnerSpawnOptions hides Windows console windows and passes paylo
   assert.equal(options.stdio, "ignore");
   assert.equal(options.windowsHide, true);
   assert.equal(options.env.ACPX_QUEUE_OWNER_PAYLOAD, '{"sessionId":"queue-session"}');
+});
+
+test("buildSpawnCommandOptions enables shell for .cmd/.bat on Windows", () => {
+  const base = {
+    stdio: ["pipe", "pipe", "pipe"] as ["pipe", "pipe", "pipe"],
+    windowsHide: true,
+  };
+
+  const cmdOptions = buildSpawnCommandOptions("C:\\Program Files\\nodejs\\npx.cmd", base, "win32");
+  const batOptions = buildSpawnCommandOptions("C:\\tools\\agent.bat", base, "win32");
+
+  assert.equal(cmdOptions.shell, true);
+  assert.equal(batOptions.shell, true);
+  assert.deepEqual(cmdOptions.stdio, base.stdio);
+  assert.equal(cmdOptions.windowsHide, true);
+});
+
+test("buildSpawnCommandOptions keeps shell disabled for non-batch commands", () => {
+  const base = {
+    stdio: ["pipe", "pipe", "pipe"] as ["pipe", "pipe", "pipe"],
+    windowsHide: true,
+  };
+
+  const linuxOptions = buildSpawnCommandOptions("/usr/bin/npx", base, "linux");
+  const windowsExeOptions = buildSpawnCommandOptions(
+    "C:\\Program Files\\nodejs\\node.exe",
+    base,
+    "win32",
+  );
+
+  assert.equal(linuxOptions.shell, undefined);
+  assert.equal(windowsExeOptions.shell, undefined);
 });

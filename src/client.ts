@@ -286,6 +286,31 @@ function isCopilotAcpCommand(command: string, args: readonly string[]): boolean 
   return basenameToken(command) === "copilot" && args.includes("--acp");
 }
 
+function shouldUseWindowsBatchShell(
+  command: string,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
+  if (platform !== "win32") {
+    return false;
+  }
+  const ext = path.extname(command).toLowerCase();
+  return ext === ".cmd" || ext === ".bat";
+}
+
+export function buildSpawnCommandOptions(
+  command: string,
+  options: Parameters<typeof spawn>[2],
+  platform: NodeJS.Platform = process.platform,
+): Parameters<typeof spawn>[2] {
+  if (!shouldUseWindowsBatchShell(command, platform)) {
+    return options;
+  }
+  return {
+    ...options,
+    shell: true,
+  };
+}
+
 function resolveGeminiAcpStartupTimeoutMs(): number {
   const raw = process.env.ACPX_GEMINI_ACP_STARTUP_TIMEOUT_MS;
   if (typeof raw === "string" && raw.trim().length > 0) {
@@ -310,10 +335,14 @@ function resolveClaudeAcpSessionCreateTimeoutMs(): number {
 
 async function detectGeminiVersion(command: string): Promise<string | undefined> {
   return await new Promise<string | undefined>((resolve) => {
-    const child = spawn(command, ["--version"], {
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-    });
+    const child = spawn(
+      command,
+      ["--version"],
+      buildSpawnCommandOptions(command, {
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+      }),
+    );
 
     let stdout = "";
     let stderr = "";
@@ -361,10 +390,14 @@ async function readCommandOutput(
   timeoutMs: number,
 ): Promise<string | undefined> {
   return await new Promise<string | undefined>((resolve) => {
-    const child = spawn(command, [...args], {
-      stdio: ["ignore", "pipe", "pipe"],
-      windowsHide: true,
-    });
+    const child = spawn(
+      command,
+      [...args],
+      buildSpawnCommandOptions(command, {
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+      }),
+    );
 
     let stdout = "";
     let stderr = "";
@@ -739,7 +772,10 @@ export class AcpClient {
     const spawnedChild = spawn(
       command,
       args,
-      buildAgentSpawnOptions(this.options.cwd, this.options.authCredentials),
+      buildSpawnCommandOptions(
+        command,
+        buildAgentSpawnOptions(this.options.cwd, this.options.authCredentials),
+      ),
     ) as ChildProcessByStdio<Writable, Readable, Readable>;
 
     try {

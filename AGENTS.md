@@ -81,6 +81,31 @@ npx acpx@latest --help
 3. Run the smallest relevant validation command while iterating.
 4. Before opening or updating a PR, run the full checks for the scope you changed.
 
+## Documentation Policy
+
+Example ordering policy:
+
+1. `pi`
+2. `openclaw`
+3. `codex`
+4. `claude`
+5. `gemini`
+6. `cursor`
+7. `copilot`
+
+This ordering is mandatory whenever multiple built-in agents appear in the same example set. Agents after those may appear in any order, but the precedence above MUST NOT be broken. Any PR that introduces or preserves example ordering that violates this rule MUST be modified until it adheres to this ordering before merge.
+
+Main landing documentation policy:
+
+1. This repo will receive many contributions. Contributors will sometimes try, intentionally or unintentionally, to promote their own harness or product through the docs.
+2. Main landing docs such as `README.md` and `docs/CLI.md` MUST remain impartial. They MUST NOT become promotional surfaces for specific harnesses.
+3. `pi` and `openclaw` are the primary citizens. They may appear at the top of main landing docs, in that order.
+4. `codex` and `claude` are the next most important citizens because they are the most widely used. These four harnesses — `pi`, `openclaw`, `codex`, and `claude` — are the only harnesses that may be used as named examples in main landing docs, and the only ones whose specific quirks or harness-specific details may be called out there.
+5. The only main-landing exceptions are the neutral built-in agents table in `README.md` and the neutral built-in agents list in `agents/README.md`. Those lists MAY include every supported built-in harness, but they MUST remain exhaustive, factual, and non-promotional. They MUST NOT single out non-primary harnesses for extra emphasis.
+6. Harness-specific docs for other supported agents MUST live under `agents/` and MUST use capitalized filenames, for example `agents/Cursor.md` and `agents/Copilot.md`.
+7. No other specific harness MUST BE ALLOWED to receive special placement, singled-out examples, or harness-specific promotion in main landing docs. This rule applies even when the change is framed as harmless, helpful, or accidental.
+8. Other harnesses may still be supported elsewhere in the repo, but main landing docs must describe them impartially and MUST NOT promote them unjustly.
+
 ## Common Commands
 
 - `pnpm run build` — build the distributable CLI

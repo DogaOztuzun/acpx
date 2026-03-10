@@ -10,7 +10,7 @@ Repo: https://github.com/openclaw/acpx
 
 ### Fixes
 
-- ACP/prompt blocks: preserve structured ACP prompt blocks instead of flattening them during prompt handling. (#103) Thanks @vincentkoc.
+- ACP/prompt blocks: preserve structured ACP prompt blocks instead of flattening them during prompt handling to support images and non-text. (#103) Thanks @vincentkoc.
 
 ## 2026.3.10 (v0.1.16)
 
@@ -43,10 +43,6 @@ Repo: https://github.com/openclaw/acpx
 
 ## 2026.3.1 (v0.1.15)
 
-### Changes
-
-### Breaking
-
 ### Fixes
 
 - CLI/version: restore `--version` behavior and staged adapter shutdown fallback. (#41) Thanks @dutifulbob.
@@ -69,10 +65,6 @@ Repo: https://github.com/openclaw/acpx
 
 ## 2026.2.26 (v0.1.13)
 
-### Changes
-
-### Breaking
-
 ### Fixes
 
 - CLI/version env: ignore foreign `npm_package_version` values in `npx` contexts when resolving the CLI version. (#25) Thanks @dutifulbob.
@@ -83,25 +75,13 @@ Repo: https://github.com/openclaw/acpx
 
 - CLI/version: add dynamic `--version` resolution at runtime. (#24) Thanks @dutifulbob.
 
-### Breaking
-
-### Fixes
-
 ## 2026.2.25 (v0.1.11)
 
 ### Changes
 
 - Runtime/owners: detach warm session owners from prompt callers and run the `opencode` adapter in ACP mode. (#23) Thanks @dutifulbob.
 
-### Breaking
-
-### Fixes
-
 ## 2026.2.25 (v0.1.10)
-
-### Changes
-
-### Breaking
 
 ### Fixes
 
@@ -113,20 +93,12 @@ Repo: https://github.com/openclaw/acpx
 
 - Docs/session identity: clarify the ACP session identity model and coverage status. (#21) Thanks @dutifulbob.
 
-### Breaking
-
-### Fixes
-
 ## 2026.2.24 (v0.1.8)
 
 ### Changes
 
 - ACP/session identity: document runtime session ID passthrough from ACP metadata. (#18) Thanks @dutifulbob.
 - Repo/metadata: align repository metadata with `openclaw/acpx`. (#19) Thanks @osolmaz.
-
-### Breaking
-
-### Fixes
 
 ## 2026.2.23 (v0.1.7)
 
@@ -135,19 +107,11 @@ Repo: https://github.com/openclaw/acpx
 - Runtime/CLI: add the initial OpenClaw ACP integration runtime and CLI primitives. (#17) Thanks @dutifulbob.
 - Docs/install: restore global install docs, badges, and `skillflag` setup guidance. (#14) Thanks @dutifulbob.
 
-### Breaking
-
-### Fixes
-
 ## 2026.2.20 (v0.1.6)
 
 ### Changes
 
 - Docs/README: add the README banner, badges, and simplified setup guidance. (#12, #13) Thanks @dutifulbob.
-
-### Breaking
-
-### Fixes
 
 ## 2026.2.20 (v0.1.5)
 
@@ -170,17 +134,11 @@ Repo: https://github.com/openclaw/acpx
 - Sessions/routing: require explicit sessions and route prompts by directory walk. (#4) Thanks @dutifulbob.
 - Docs/skills: add a quick-setup blurb for agent skill install. (#3) Thanks @dutifulbob.
 
-### Breaking
-
-### Fixes
-
 ## 2026.2.18 (v0.1.3)
 
 ### Changes
 
 - CI/tests: align CI and test setup and expand coverage for the initial release line. (#1) Thanks @dutifulbob.
-
-### Breaking
 
 ### Fixes
 

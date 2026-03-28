@@ -618,7 +618,7 @@ async function buildGeminiAcpStartupTimeoutMessage(command: string): Promise<str
 function buildClaudeAcpSessionCreateTimeoutMessage(): string {
   return [
     "Claude ACP session creation timed out before session/new completed.",
-    "This matches the known persistent-session stall seen with some Claude Code and @zed-industries/claude-agent-acp combinations.",
+    "This matches the known persistent-session stall seen with some Claude Code and @agentclientprotocol/claude-agent-acp combinations.",
     "In harnessed or non-interactive runs, prefer --approve-all with nonInteractivePermissions=deny, upgrade Claude Code and the Claude ACP adapter, or use acpx claude exec as a one-shot fallback.",
   ].join(" ");
 }

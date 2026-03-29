@@ -48,6 +48,7 @@ type SessionState = {
   hasCompletedPrompt: boolean;
   modeId: string;
   configValues: Record<string, string | boolean>;
+  transientPromptAttempts: Record<string, number>;
 };
 
 class CancelledError extends Error {
@@ -398,6 +399,7 @@ function createSessionState(hasCompletedPrompt = false): SessionState {
     configValues: {
       reasoning_effort: "medium",
     },
+    transientPromptAttempts: {},
   };
 }
 
@@ -540,9 +542,54 @@ class MockAgent implements Agent {
     session.pendingPrompt?.abort();
     const promptAbort = new AbortController();
     session.pendingPrompt = promptAbort;
+    const text = getPromptText(params.prompt);
+
+    if (text === "partial-retryable-error") {
+      try {
+        await this.sendAssistantMessage(params.sessionId, "partial update");
+        const error = new Error("Internal error") as Error & {
+          code: number;
+          data: {
+            details: string;
+          };
+        };
+        error.code = -32603;
+        error.data = {
+          details: "transient failure after partial output",
+        };
+        throw error;
+      } finally {
+        if (session.pendingPrompt === promptAbort) {
+          session.pendingPrompt = undefined;
+        }
+      }
+    }
+
+    if (text === "retryable-error-once") {
+      const attempts = session.transientPromptAttempts[text] ?? 0;
+      session.transientPromptAttempts[text] = attempts + 1;
+      if (attempts === 0) {
+        try {
+          const error = new Error("Internal error") as Error & {
+            code: number;
+            data: {
+              details: string;
+            };
+          };
+          error.code = -32603;
+          error.data = {
+            details: "transient failure before output",
+          };
+          throw error;
+        } finally {
+          if (session.pendingPrompt === promptAbort) {
+            session.pendingPrompt = undefined;
+          }
+        }
+      }
+    }
 
     try {
-      const text = getPromptText(params.prompt);
       const response =
         text === "inspect-prompt"
           ? describePromptBlocks(params.prompt)
@@ -658,6 +705,9 @@ class MockAgent implements Agent {
     }
     if (text === "echo") {
       return "";
+    }
+    if (text === "retryable-error-once") {
+      return "recovered after retry";
     }
 
     if (text.startsWith("read ")) {

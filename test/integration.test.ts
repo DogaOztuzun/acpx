@@ -760,6 +760,9 @@ test("integration: exec forwards model, allowed-tools, and max-turns in session/
     const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "acpx-integration-cwd-"));
 
     try {
+      const created = await runCli([...baseAgentArgs(cwd), "sessions", "new"], homeDir);
+      assert.equal(created.code, 0, created.stderr);
+
       const result = await runCli(
         [
           ...baseAgentArgs(cwd),
@@ -1539,6 +1542,44 @@ test("integration: json-strict exec success emits JSON-RPC lines only", async ()
   });
 });
 
+test("integration: json-strict exec retries without emitting stderr notices", async () => {
+  await withTempHome(async (homeDir) => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "acpx-integration-cwd-"));
+
+    try {
+      const result = await runCli(
+        [
+          ...baseAgentArgs(cwd),
+          "--format",
+          "json",
+          "--json-strict",
+          "--prompt-retries",
+          "1",
+          "exec",
+          "retryable-error-once",
+        ],
+        homeDir,
+      );
+
+      assert.equal(result.code, 0, result.stderr);
+      assert.equal(result.stderr.trim(), "");
+
+      const payloads = parseJsonRpcOutputLines(result.stdout);
+      const promptRequests = payloads.filter((payload) => payload.method === "session/prompt");
+      assert.equal(promptRequests.length, 2, result.stdout);
+      assert.equal(
+        payloads.some(
+          (payload) => extractAgentMessageChunkText(payload) === "recovered after retry",
+        ),
+        true,
+        result.stdout,
+      );
+    } finally {
+      await fs.rm(cwd, { recursive: true, force: true });
+    }
+  });
+});
+
 test("integration: fs/read_text_file through mock agent", async () => {
   await withTempHome(async (homeDir) => {
     const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "acpx-integration-cwd-"));
@@ -1878,6 +1919,71 @@ test("integration: prompt recovers when loadSession fails on empty session witho
         homeDir,
       );
       assert.equal(closed.code, 0, closed.stderr);
+    } finally {
+      await fs.rm(cwd, { recursive: true, force: true });
+    }
+  });
+});
+
+test("integration: prompt retries stop after partial prompt output", async () => {
+  await withTempHome(async (homeDir) => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "acpx-integration-cwd-"));
+
+    try {
+      const created = await runCli([...baseAgentArgs(cwd), "sessions", "new"], homeDir);
+      assert.equal(created.code, 0, created.stderr);
+
+      const result = await runCli(
+        [
+          ...baseAgentArgs(cwd),
+          "--format",
+          "json",
+          "--prompt-retries",
+          "1",
+          "prompt",
+          "partial-retryable-error",
+        ],
+        homeDir,
+      );
+      assert.notEqual(result.code, 0, result.stderr);
+      assert.equal(/retrying in/.test(result.stderr), false, result.stderr);
+
+      const payloads = parseJsonRpcOutputLines(result.stdout);
+      const partialUpdates = payloads.filter(
+        (payload) => extractAgentMessageChunkText(payload) === "partial update",
+      );
+      assert.equal(partialUpdates.length, 1, result.stdout);
+    } finally {
+      await fs.rm(cwd, { recursive: true, force: true });
+    }
+  });
+});
+
+test("integration: exec retries stop after partial prompt output", async () => {
+  await withTempHome(async (homeDir) => {
+    const cwd = await fs.mkdtemp(path.join(os.tmpdir(), "acpx-integration-cwd-"));
+
+    try {
+      const result = await runCli(
+        [
+          ...baseAgentArgs(cwd),
+          "--format",
+          "json",
+          "--prompt-retries",
+          "1",
+          "exec",
+          "partial-retryable-error",
+        ],
+        homeDir,
+      );
+      assert.equal(result.code, 1, result.stderr);
+      assert.equal(/retrying in/.test(result.stderr), false, result.stderr);
+
+      const payloads = parseJsonRpcOutputLines(result.stdout);
+      const partialUpdates = payloads.filter(
+        (payload) => extractAgentMessageChunkText(payload) === "partial update",
+      );
+      assert.equal(partialUpdates.length, 1, result.stdout);
     } finally {
       await fs.rm(cwd, { recursive: true, force: true });
     }

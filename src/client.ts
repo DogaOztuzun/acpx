@@ -664,7 +664,7 @@ function toEnvToken(value: string): string {
     .toUpperCase();
 }
 
-function authEnvKeys(methodId: string): string[] {
+function buildAuthEnvKeys(methodId: string): string[] {
   const token = toEnvToken(methodId);
   const keys = new Set<string>([methodId]);
   if (token) {
@@ -672,6 +672,18 @@ function authEnvKeys(methodId: string): string[] {
     keys.add(`ACPX_AUTH_${token}`);
   }
   return [...keys];
+}
+
+const authEnvKeysCache = new Map<string, string[]>();
+
+function authEnvKeys(methodId: string): string[] {
+  const cached = authEnvKeysCache.get(methodId);
+  if (cached) {
+    return cached;
+  }
+  const keys = buildAuthEnvKeys(methodId);
+  authEnvKeysCache.set(methodId, keys);
+  return keys;
 }
 
 function readEnvCredential(methodId: string): string | undefined {

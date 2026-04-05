@@ -36,6 +36,8 @@ import {
   normalizeOutputError,
   type NormalizedOutputError,
 } from "./error-normalization.js";
+import { handleLogs, type LogsFlags, writeLog } from "./logs-command.js";
+import { defaultLogsDir } from "./logs-dir.js";
 import { flushPerfMetricsCapture, installPerfMetricsCapture } from "./perf-metrics-capture.js";
 import {
   mergePromptSourceWithText,
@@ -85,6 +87,7 @@ const TOP_LEVEL_VERBS = new Set([
   "sessions",
   "status",
   "config",
+  "logs",
   "help",
 ]);
 
@@ -252,6 +255,12 @@ async function handlePrompt(
   const permissionMode = resolvePermissionMode(globalFlags, config.defaultPermissions);
   const prompt = await readPrompt(promptParts, flags.file, globalFlags.cwd);
   const agent = resolveAgentInvocation(explicitAgentName, globalFlags, config);
+
+  if (globalFlags.verbose) {
+    const sessionLabel = flags.session ?? globalFlags.cwd;
+    await writeLog(defaultLogsDir(), sessionLabel, `[prompt] ${promptParts.join(" ")}`);
+  }
+
   const [
     { createOutputFormatter },
     { printPromptSessionBanner, printQueuedPromptByFormat },
@@ -294,10 +303,23 @@ async function handlePrompt(
 
   if ("queued" in result) {
     printQueuedPromptByFormat(result, outputPolicy.format);
+    if (globalFlags.verbose) {
+      const sessionLabel = flags.session ?? globalFlags.cwd;
+      await writeLog(defaultLogsDir(), sessionLabel, `[queued] requestId=${result.requestId}`);
+    }
     return;
   }
 
   applyPermissionExitCode(result);
+
+  if (globalFlags.verbose) {
+    const sessionLabel = flags.session ?? globalFlags.cwd;
+    await writeLog(
+      defaultLogsDir(),
+      sessionLabel,
+      `[completed] stopReason=${result.stopReason} permissions=${result.permissionStats.requested}/${result.permissionStats.approved}/${result.permissionStats.denied}`,
+    );
+  }
 
   if (globalFlags.verbose && result.loadError) {
     process.stderr.write(`[acpx] loadSession failed, started fresh session: ${result.loadError}\n`);
@@ -1211,6 +1233,20 @@ function registerDefaultCommands(program: Command, config: ResolvedAcpxConfig): 
   registerSessionsCommand(program, undefined, config);
   registerConfigCommand(program, config);
   registerFlowCommand(program, config);
+  registerLogsCommand(program, config);
+}
+
+function registerLogsCommand(program: Command, config: ResolvedAcpxConfig): void {
+  const logsCommand = program.command("logs").description("View or tail agent interaction logs");
+
+  logsCommand
+    .option("-s, --session <name>", "Filter logs by session name")
+    .option("--tail <count>", "Show only the last N entries", parseHistoryLimit)
+    .option("--follow", "Tail live log output")
+    .action(async function (this: Command, flags: LogsFlags) {
+      const globalFlags = resolveGlobalFlags(this, config);
+      await handleLogs(flags, globalFlags.format);
+    });
 }
 
 type AgentTokenScan = {

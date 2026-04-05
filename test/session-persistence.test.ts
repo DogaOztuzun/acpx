@@ -5,7 +5,11 @@ import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { serializeSessionRecordForDisk } from "../src/session-persistence.js";
+import {
+  exportSessions,
+  importSessions,
+  serializeSessionRecordForDisk,
+} from "../src/session-persistence.js";
 import type { SessionRecord } from "../src/types.js";
 
 type SessionModule = typeof import("../src/session.js");
@@ -269,6 +273,238 @@ test("writeSessionRecord maintains an index and listSessions rebuilds it when mi
       true,
     );
     assert.equal(await fileExists(indexPath), true);
+  });
+});
+
+test("exportSessions exports specific session by ID", async () => {
+  await withTempHome(async (homeDir) => {
+    const cwd = path.join(homeDir, "workspace");
+
+    await writeSessionRecord(
+      homeDir,
+      makeSessionRecord({
+        acpxRecordId: "export-test-session",
+        acpSessionId: "export-test-session",
+        agentCommand: "codex",
+        cwd,
+        messages: [
+          {
+            User: {
+              id: "msg-1",
+              content: [{ Text: "Hello" }],
+            },
+          },
+          {
+            Agent: {
+              content: [{ Text: "Hi there" }],
+              tool_results: {},
+            },
+          },
+        ],
+      }),
+    );
+
+    const result = await exportSessions({ sessionId: "export-test-session" });
+    const manifest = result as { sessions: Array<{ acpxRecordId: string }> };
+
+    assert.equal(manifest.sessions.length, 1);
+    assert.equal(manifest.sessions[0]?.acpxRecordId, "export-test-session");
+  });
+});
+
+test("exportSessions exports all sessions with --all", async () => {
+  await withTempHome(async (homeDir) => {
+    const cwd = path.join(homeDir, "workspace");
+
+    await writeSessionRecord(
+      homeDir,
+      makeSessionRecord({
+        acpxRecordId: "session-1",
+        acpSessionId: "session-1",
+        agentCommand: "codex",
+        cwd,
+      }),
+    );
+
+    await writeSessionRecord(
+      homeDir,
+      makeSessionRecord({
+        acpxRecordId: "session-2",
+        acpSessionId: "session-2",
+        agentCommand: "pi",
+        cwd,
+      }),
+    );
+
+    const result = await exportSessions({ all: true });
+    const manifest = result as { sessions: Array<{ acpxRecordId: string }> };
+
+    assert.equal(manifest.sessions.length, 2);
+  });
+});
+
+test("exportSessions supports jsonl format", async () => {
+  await withTempHome(async (homeDir) => {
+    const cwd = path.join(homeDir, "workspace");
+
+    await writeSessionRecord(
+      homeDir,
+      makeSessionRecord({
+        acpxRecordId: "jsonl-test",
+        acpSessionId: "jsonl-test",
+        agentCommand: "codex",
+        cwd,
+      }),
+    );
+
+    const result = await exportSessions({ sessionId: "jsonl-test", format: "jsonl" });
+    let entryCount = 0;
+    for await (const entry of result as AsyncIterable<{ acpxRecordId: string }>) {
+      assert.equal(entry.acpxRecordId, "jsonl-test");
+      entryCount++;
+    }
+    assert.equal(entryCount, 1);
+  });
+});
+
+test("importSessions imports session with skip on conflict", async () => {
+  await withTempHome(async (homeDir) => {
+    const cwd = path.join(homeDir, "workspace");
+
+    const original = makeSessionRecord({
+      acpxRecordId: "import-test",
+      acpSessionId: "import-test",
+      agentCommand: "codex",
+      cwd,
+      title: "Original Title",
+    });
+
+    await writeSessionRecord(homeDir, original);
+
+    const duplicate = makeSessionRecord({
+      acpxRecordId: "import-test",
+      acpSessionId: "import-test-dup",
+      agentCommand: "codex",
+      cwd,
+      title: "Duplicate Title",
+    });
+
+    const result = await importSessions(
+      {
+        schema: "acpx.session-export.v1",
+        exportedAt: new Date().toISOString(),
+        exportedBy: "acpx",
+        sessions: [
+          {
+            acpxRecordId: duplicate.acpxRecordId,
+            acpSessionId: duplicate.acpSessionId,
+            agentCommand: duplicate.agentCommand,
+            cwd: duplicate.cwd,
+            exportedAt: new Date().toISOString(),
+            record: serializeSessionRecordForDisk(duplicate),
+          },
+        ],
+      },
+      { onConflict: "skip" },
+    );
+
+    assert.equal(result.imported, 0);
+    assert.equal(result.skipped, 1);
+    assert.equal(result.renamed, 0);
+  });
+});
+
+test("importSessions imports session with overwrite on conflict", async () => {
+  await withTempHome(async (homeDir) => {
+    const cwd = path.join(homeDir, "workspace");
+
+    const original = makeSessionRecord({
+      acpxRecordId: "overwrite-test",
+      acpSessionId: "overwrite-test",
+      agentCommand: "codex",
+      cwd,
+      title: "Original Title",
+    });
+
+    await writeSessionRecord(homeDir, original);
+
+    const updated = makeSessionRecord({
+      acpxRecordId: "overwrite-test",
+      acpSessionId: "overwrite-test-updated",
+      agentCommand: "codex",
+      cwd,
+      title: "Updated Title",
+    });
+
+    const result = await importSessions(
+      {
+        schema: "acpx.session-export.v1",
+        exportedAt: new Date().toISOString(),
+        exportedBy: "acpx",
+        sessions: [
+          {
+            acpxRecordId: updated.acpxRecordId,
+            acpSessionId: updated.acpSessionId,
+            agentCommand: updated.agentCommand,
+            cwd: updated.cwd,
+            exportedAt: new Date().toISOString(),
+            record: serializeSessionRecordForDisk(updated),
+          },
+        ],
+      },
+      { onConflict: "overwrite" },
+    );
+
+    assert.equal(result.imported, 1);
+    assert.equal(result.skipped, 0);
+    assert.equal(result.renamed, 0);
+  });
+});
+
+test("importSessions imports session with rename on conflict", async () => {
+  await withTempHome(async (homeDir) => {
+    const cwd = path.join(homeDir, "workspace");
+
+    const original = makeSessionRecord({
+      acpxRecordId: "rename-test",
+      acpSessionId: "rename-test",
+      agentCommand: "codex",
+      cwd,
+      title: "Original Title",
+    });
+
+    await writeSessionRecord(homeDir, original);
+
+    const duplicate = makeSessionRecord({
+      acpxRecordId: "rename-test",
+      acpSessionId: "rename-test-dup",
+      agentCommand: "codex",
+      cwd,
+      title: "Duplicate Title",
+    });
+
+    const result = await importSessions(
+      {
+        schema: "acpx.session-export.v1",
+        exportedAt: new Date().toISOString(),
+        exportedBy: "acpx",
+        sessions: [
+          {
+            acpxRecordId: duplicate.acpxRecordId,
+            acpSessionId: duplicate.acpSessionId,
+            agentCommand: duplicate.agentCommand,
+            cwd: duplicate.cwd,
+            exportedAt: new Date().toISOString(),
+            record: serializeSessionRecordForDisk(duplicate),
+          },
+        ],
+      },
+      { onConflict: "rename" },
+    );
+
+    assert.equal(result.imported, 0);
+    assert.equal(result.skipped, 0);
+    assert.equal(result.renamed, 1);
   });
 });
 

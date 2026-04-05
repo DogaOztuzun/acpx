@@ -46,9 +46,13 @@ import {
 import { runQueueOwnerFromEnv } from "./queue-owner-env.js";
 import {
   DEFAULT_HISTORY_LIMIT,
+  exportSessions,
   findGitRepositoryRoot,
   findSession,
   findSessionByDirectoryWalk,
+  importSessions,
+  SessionExportEntry,
+  SessionExportManifest,
 } from "./session-persistence.js";
 import { InterruptedError } from "./session-runtime-helpers.js";
 import {
@@ -980,6 +984,96 @@ async function handleSessionsHistory(
   printSessionHistoryByFormat(record, flags.limit, globalFlags.format);
 }
 
+async function handleSessionsExport(
+  flags: { session?: string; all?: boolean; format?: string },
+  command: Command,
+  config: ResolvedAcpxConfig,
+): Promise<void> {
+  resolveGlobalFlags(command, config);
+
+  if (!flags.session && !flags.all) {
+    throw new Error("Specify --session <id> or --all to export");
+  }
+
+  const format = (flags.format ?? "json") as "json" | "jsonl";
+  const result = await exportSessions({
+    sessionId: flags.session,
+    format,
+  });
+
+  if (format === "jsonl") {
+    for await (const entry of result as AsyncIterable<SessionExportEntry>) {
+      process.stdout.write(`${JSON.stringify(entry)}\n`);
+    }
+    return;
+  }
+
+  const manifest = result as SessionExportManifest;
+  process.stdout.write(`${JSON.stringify(manifest, null, 2)}\n`);
+}
+
+async function handleSessionsImport(
+  flags: { onConflict?: "skip" | "overwrite" | "rename" },
+  command: Command,
+  config: ResolvedAcpxConfig,
+): Promise<void> {
+  const globalFlags = resolveGlobalFlags(command, config);
+
+  let input = "";
+  for await (const chunk of process.stdin) {
+    input += String(chunk);
+  }
+
+  if (!input.trim()) {
+    throw new Error("No input data provided via stdin");
+  }
+
+  let data: unknown;
+  try {
+    data = JSON.parse(input);
+  } catch {
+    throw new Error("Invalid JSON in input");
+  }
+
+  let manifest: SessionExportManifest;
+
+  if (
+    typeof data === "object" &&
+    data !== null &&
+    "schema" in data &&
+    (data as Record<string, unknown>).schema === "acpx.session-export.v1"
+  ) {
+    manifest = data as SessionExportManifest;
+  } else if (typeof data === "object" && data !== null && Array.isArray(data)) {
+    manifest = {
+      schema: "acpx.session-export.v1",
+      exportedAt: new Date().toISOString(),
+      exportedBy: "acpx",
+      sessions: data as SessionExportEntry[],
+    };
+  } else {
+    throw new Error("Invalid export format: expected manifest or array of session entries");
+  }
+
+  const result = await importSessions(manifest, { onConflict: flags.onConflict ?? "skip" });
+
+  if (globalFlags.format === "json") {
+    process.stdout.write(
+      `${JSON.stringify({
+        action: "import_result",
+        imported: result.imported,
+        skipped: result.skipped,
+        renamed: result.renamed,
+      })}\n`,
+    );
+    return;
+  }
+
+  process.stdout.write(`imported: ${result.imported}\n`);
+  process.stdout.write(`skipped: ${result.skipped}\n`);
+  process.stdout.write(`renamed: ${result.renamed}\n`);
+}
+
 function registerSessionsCommand(
   parent: Command,
   explicitAgentName: string | undefined,
@@ -1069,6 +1163,50 @@ function registerSessionsCommand(
         this,
         config,
       );
+    });
+
+  sessionsCommand
+    .command("export")
+    .description("Export sessions to JSON")
+    .option("--session <id>", "Export specific session by ID")
+    .option("--all", "Export all sessions", false)
+    .option(
+      "--format <format>",
+      "Output format: json (default) or jsonl for streaming",
+      (value: string) => {
+        if (value !== "json" && value !== "jsonl") {
+          throw new InvalidArgumentError("Format must be json or jsonl");
+        }
+        return value;
+      },
+      "json",
+    )
+    .action(async function (
+      this: Command,
+      flags: { session?: string; all?: boolean; format?: string },
+    ) {
+      await handleSessionsExport(flags, this, config);
+    });
+
+  sessionsCommand
+    .command("import")
+    .description("Import sessions from JSON")
+    .option(
+      "--on-conflict <action>",
+      "Action on conflict: skip, overwrite, or rename",
+      (value: string) => {
+        if (value !== "skip" && value !== "overwrite" && value !== "rename") {
+          throw new InvalidArgumentError("Conflict action must be skip, overwrite, or rename");
+        }
+        return value;
+      },
+      "skip",
+    )
+    .action(async function (
+      this: Command,
+      flags: { onConflict?: "skip" | "overwrite" | "rename" },
+    ) {
+      await handleSessionsImport(flags, this, config);
     });
 }
 

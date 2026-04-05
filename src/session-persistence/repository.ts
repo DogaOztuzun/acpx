@@ -16,6 +16,30 @@ import {
 import { parseSessionRecord } from "./parse.js";
 import { serializeSessionRecordForDisk } from "./serialize.js";
 
+export const EXPORT_SCHEMA = "acpx.session-export.v1" as const;
+
+export type SessionExportManifest = {
+  schema: typeof EXPORT_SCHEMA;
+  exportedAt: string;
+  exportedBy: string;
+  sessions: SessionExportEntry[];
+};
+
+export type SessionExportEntry = {
+  acpxRecordId: string;
+  acpSessionId: string;
+  agentCommand: string;
+  cwd: string;
+  name?: string;
+  exportedAt: string;
+  record: Record<string, unknown>;
+};
+
+export type SessionImportOptions = {
+  onConflict: "skip" | "overwrite" | "rename";
+  generateNewIds?: boolean;
+};
+
 export const DEFAULT_HISTORY_LIMIT = 20;
 
 type FindSessionOptions = {
@@ -322,4 +346,150 @@ export async function closeSession(id: string): Promise<SessionRecord> {
     // best effort cache rebuild
   });
   return record;
+}
+
+export async function exportSessions(options?: {
+  sessionId?: string;
+  agentCommand?: string;
+  all?: boolean;
+  format?: "json" | "jsonl";
+}): Promise<SessionExportManifest | AsyncIterable<SessionExportEntry>> {
+  const format = options?.format ?? "json";
+  const entries = await loadSessionIndexEntries();
+
+  let filtered = entries;
+  if (options?.sessionId) {
+    filtered = filtered.filter(
+      (e) => e.acpxRecordId === options.sessionId || e.acpSessionId === options.sessionId,
+    );
+  }
+  if (options?.agentCommand) {
+    filtered = filtered.filter((e) => e.agentCommand === options.agentCommand);
+  }
+
+  if (format === "jsonl") {
+    return (async function* (): AsyncGenerator<SessionExportEntry> {
+      for (const entry of filtered) {
+        const record = await loadRecordFromIndexEntry(entry);
+        if (record) {
+          yield createExportEntry(record);
+        }
+      }
+    })();
+  }
+
+  const manifest: SessionExportManifest = {
+    schema: EXPORT_SCHEMA,
+    exportedAt: isoNow(),
+    exportedBy: "acpx",
+    sessions: [],
+  };
+
+  for (const entry of filtered) {
+    const record = await loadRecordFromIndexEntry(entry);
+    if (record) {
+      manifest.sessions.push(createExportEntry(record));
+    }
+  }
+
+  return manifest;
+}
+
+function createExportEntry(record: SessionRecord): SessionExportEntry {
+  return {
+    acpxRecordId: record.acpxRecordId,
+    acpSessionId: record.acpSessionId,
+    agentCommand: record.agentCommand,
+    cwd: record.cwd,
+    name: record.name,
+    exportedAt: isoNow(),
+    record: serializeSessionRecordForDisk(record),
+  };
+}
+
+export async function importSessions(
+  data: SessionExportManifest | AsyncIterable<SessionExportEntry>,
+  options: SessionImportOptions = { onConflict: "skip" },
+): Promise<{ imported: number; skipped: number; renamed: number }> {
+  let sessions: SessionExportEntry[];
+
+  if (Symbol.asyncIterator in data) {
+    sessions = [];
+    for await (const entry of data) {
+      sessions.push(entry);
+    }
+  } else {
+    sessions = data.sessions;
+  }
+
+  let imported = 0;
+  let skipped = 0;
+  let renamed = 0;
+
+  for (const entry of sessions) {
+    const existing = await resolveSessionRecord(entry.acpxRecordId).catch(() => undefined);
+
+    if (existing) {
+      if (options.onConflict === "skip") {
+        skipped++;
+        continue;
+      }
+      if (options.onConflict === "rename") {
+        const newId = `${entry.acpxRecordId}-${Date.now()}`;
+        const renamedEntry = {
+          ...entry,
+          acpxRecordId: newId,
+          record: {
+            ...entry.record,
+            acpx_record_id: newId,
+          },
+        };
+        await writeSessionRecordFromExport(renamedEntry);
+        renamed++;
+        continue;
+      }
+    }
+
+    await writeSessionRecordFromExport(entry);
+    imported++;
+  }
+
+  return { imported, skipped, renamed };
+}
+
+async function writeSessionRecordFromExport(entry: SessionExportEntry): Promise<void> {
+  const record: SessionRecord = {
+    schema: "acpx.session.v1",
+    acpxRecordId: entry.record.acpx_record_id as string,
+    acpSessionId: entry.record.acp_session_id as string,
+    agentSessionId: entry.record.agent_session_id as string | undefined,
+    agentCommand: entry.record.agent_command as string,
+    cwd: entry.record.cwd as string,
+    name: entry.record.name as string | undefined,
+    createdAt: entry.record.created_at as string,
+    lastUsedAt: entry.record.last_used_at as string,
+    lastSeq: entry.record.last_seq as number,
+    lastRequestId: entry.record.last_request_id as string | undefined,
+    eventLog: entry.record.event_log as SessionRecord["eventLog"],
+    closed: entry.record.closed as boolean | undefined,
+    closedAt: entry.record.closed_at as string | undefined,
+    pid: entry.record.pid as number | undefined,
+    agentStartedAt: entry.record.agent_started_at as string | undefined,
+    lastPromptAt: entry.record.last_prompt_at as string | undefined,
+    lastAgentExitCode: entry.record.last_agent_exit_code as number | null | undefined,
+    lastAgentExitSignal: entry.record.last_agent_exit_signal as NodeJS.Signals | null | undefined,
+    lastAgentExitAt: entry.record.last_agent_exit_at as string | undefined,
+    lastAgentDisconnectReason: entry.record.last_agent_disconnect_reason as string | undefined,
+    protocolVersion: entry.record.protocol_version as number | undefined,
+    agentCapabilities: entry.record.agent_capabilities as SessionRecord["agentCapabilities"],
+    title: entry.record.title as string | null | undefined,
+    messages: entry.record.messages as SessionRecord["messages"],
+    updated_at: entry.record.updated_at as string,
+    cumulative_token_usage: entry.record
+      .cumulative_token_usage as SessionRecord["cumulative_token_usage"],
+    request_token_usage: entry.record.request_token_usage as SessionRecord["request_token_usage"],
+    acpx: entry.record.acpx as SessionRecord["acpx"],
+  };
+
+  await writeSessionRecord(record);
 }

@@ -6,11 +6,16 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { serializeSessionRecordForDisk } from "../src/session-persistence.js";
+import {
+  DEFAULT_QUEUE_OWNER_TTL_MS,
+  listSessions,
+  findSession,
+  findSessionByDirectoryWalk,
+  findGitRepositoryRoot,
+  closeSession,
+  normalizeQueueOwnerTtlMs,
+} from "../src/session-runtime.js";
 import type { SessionRecord } from "../src/types.js";
-
-type SessionModule = typeof import("../src/session.js");
-
-const SESSION_MODULE_URL = new URL("../src/session.js", import.meta.url);
 
 test("SessionRecord allows optional closed and closedAt fields", () => {
   const record = makeSessionRecord({
@@ -26,7 +31,6 @@ test("SessionRecord allows optional closed and closedAt fields", () => {
 
 test("listSessions preserves acpx desired_mode_id", async () => {
   await withTempHome(async (homeDir) => {
-    const session = await loadSessionModule();
     const cwd = path.join(homeDir, "workspace");
 
     await writeSessionRecord(
@@ -42,7 +46,7 @@ test("listSessions preserves acpx desired_mode_id", async () => {
       }),
     );
 
-    const sessions = await session.listSessions();
+    const sessions = await listSessions();
     const record = sessions.find((entry) => entry.acpxRecordId === "desired-mode");
     assert.ok(record);
     assert.equal(record.acpx?.desired_mode_id, "plan");
@@ -51,7 +55,6 @@ test("listSessions preserves acpx desired_mode_id", async () => {
 
 test("listSessions preserves acpx session_options", async () => {
   await withTempHome(async (homeDir) => {
-    const session = await loadSessionModule();
     const cwd = path.join(homeDir, "workspace");
 
     await writeSessionRecord(
@@ -71,7 +74,7 @@ test("listSessions preserves acpx session_options", async () => {
       }),
     );
 
-    const sessions = await session.listSessions();
+    const sessions = await listSessions();
     const record = sessions.find((entry) => entry.acpxRecordId === "session-options");
     assert.ok(record);
     assert.deepEqual(record.acpx?.session_options, {
@@ -108,8 +111,7 @@ test("listSessions ignores unsupported conversation message shapes", async () =>
       "utf8",
     );
 
-    const session = await loadSessionModule();
-    const sessions = await session.listSessions();
+    const sessions = await listSessions();
     assert.equal(
       sessions.some((entry) => entry.acpxRecordId === "malformed-shape"),
       false,
@@ -119,7 +121,6 @@ test("listSessions ignores unsupported conversation message shapes", async () =>
 
 test("listSessions preserves lifecycle and conversation metadata", async () => {
   await withTempHome(async (homeDir) => {
-    const session = await loadSessionModule();
     const cwd = path.join(homeDir, "workspace");
 
     await writeSessionRecord(
@@ -157,7 +158,7 @@ test("listSessions preserves lifecycle and conversation metadata", async () => {
       }),
     );
 
-    const sessions = await session.listSessions();
+    const sessions = await listSessions();
     const record = sessions.find((entry) => entry.acpxRecordId === "session-a");
     assert.ok(record);
     assert.equal(record.agentStartedAt, "2026-01-01T00:00:00.000Z");
@@ -173,7 +174,6 @@ test("listSessions preserves lifecycle and conversation metadata", async () => {
 
 test("listSessions preserves optional agentSessionId", async () => {
   await withTempHome(async (homeDir) => {
-    const session = await loadSessionModule();
     const cwd = path.join(homeDir, "workspace");
 
     await writeSessionRecord(
@@ -187,7 +187,7 @@ test("listSessions preserves optional agentSessionId", async () => {
       }),
     );
 
-    const sessions = await session.listSessions();
+    const sessions = await listSessions();
     const record = sessions.find((entry) => entry.acpxRecordId === "session-runtime");
     assert.ok(record);
     assert.equal(record.agentSessionId, "provider-runtime-123");
@@ -196,8 +196,6 @@ test("listSessions preserves optional agentSessionId", async () => {
 
 test("findSession and findSessionByDirectoryWalk resolve expected records", async () => {
   await withTempHome(async (homeDir) => {
-    const session = await loadSessionModule();
-
     const repoRoot = path.join(homeDir, "repo");
     const packagesDir = path.join(repoRoot, "packages");
     const nestedDir = path.join(packagesDir, "app");
@@ -224,14 +222,14 @@ test("findSession and findSessionByDirectoryWalk resolve expected records", asyn
       }),
     );
 
-    const foundDefault = await session.findSession({
+    const foundDefault = await findSession({
       agentCommand: "agent-a",
       cwd: packagesDir,
     });
     assert.equal(foundDefault?.acpxRecordId, "session-packages");
 
-    const boundary = session.findGitRepositoryRoot(nestedDir);
-    const walked = await session.findSessionByDirectoryWalk({
+    const boundary = findGitRepositoryRoot(nestedDir);
+    const walked = await findSessionByDirectoryWalk({
       agentCommand: "agent-a",
       cwd: nestedDir,
       boundary,
@@ -242,7 +240,6 @@ test("findSession and findSessionByDirectoryWalk resolve expected records", asyn
 
 test("writeSessionRecord maintains an index and listSessions rebuilds it when missing", async () => {
   await withTempHome(async (homeDir) => {
-    const session = await loadSessionModule();
     const cwd = path.join(homeDir, "repo");
     const record = makeSessionRecord({
       acpxRecordId: "indexed-session",
@@ -255,7 +252,7 @@ test("writeSessionRecord maintains an index and listSessions rebuilds it when mi
     await writeSessionRecord(homeDir, record);
     assert.equal(await fileExists(indexPath), false);
 
-    const initialSessions = await session.listSessions();
+    const initialSessions = await listSessions();
     assert.equal(
       initialSessions.some((entry) => entry.acpxRecordId === "indexed-session"),
       true,
@@ -263,7 +260,7 @@ test("writeSessionRecord maintains an index and listSessions rebuilds it when mi
     assert.equal(await fileExists(indexPath), true);
 
     await fs.rm(indexPath, { force: true });
-    const sessions = await session.listSessions();
+    const sessions = await listSessions();
     assert.equal(
       sessions.some((entry) => entry.acpxRecordId === "indexed-session"),
       true,
@@ -274,8 +271,6 @@ test("writeSessionRecord maintains an index and listSessions rebuilds it when mi
 
 test("closeSession soft-closes and terminates matching process", async () => {
   await withTempHome(async (homeDir) => {
-    const session = await loadSessionModule();
-
     const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000);"], {
       stdio: "ignore",
     });
@@ -297,7 +292,7 @@ test("closeSession soft-closes and terminates matching process", async () => {
     const filePath = sessionFilePath(homeDir, sessionId);
 
     try {
-      const closed = await session.closeSession(sessionId);
+      const closed = await closeSession(sessionId);
       assert.equal(closed.closed, true);
       assert.equal(typeof closed.closedAt, "string");
       assert.equal(closed.pid, undefined);
@@ -319,28 +314,16 @@ test("closeSession soft-closes and terminates matching process", async () => {
 
 test("normalizeQueueOwnerTtlMs applies default and edge-case normalization", async () => {
   await withTempHome(async () => {
-    const session = await loadSessionModule();
-    assert.equal(session.normalizeQueueOwnerTtlMs(undefined), session.DEFAULT_QUEUE_OWNER_TTL_MS);
-    assert.equal(session.normalizeQueueOwnerTtlMs(0), 0);
-    assert.equal(session.normalizeQueueOwnerTtlMs(-1), session.DEFAULT_QUEUE_OWNER_TTL_MS);
-    assert.equal(session.normalizeQueueOwnerTtlMs(Number.NaN), session.DEFAULT_QUEUE_OWNER_TTL_MS);
-    assert.equal(
-      session.normalizeQueueOwnerTtlMs(Number.POSITIVE_INFINITY),
-      session.DEFAULT_QUEUE_OWNER_TTL_MS,
-    );
-    assert.equal(
-      session.normalizeQueueOwnerTtlMs(Number.NEGATIVE_INFINITY),
-      session.DEFAULT_QUEUE_OWNER_TTL_MS,
-    );
-    assert.equal(session.normalizeQueueOwnerTtlMs(1.6), 2);
-    assert.equal(session.normalizeQueueOwnerTtlMs(15_000), 15_000);
+    assert.equal(normalizeQueueOwnerTtlMs(undefined), DEFAULT_QUEUE_OWNER_TTL_MS);
+    assert.equal(normalizeQueueOwnerTtlMs(0), 0);
+    assert.equal(normalizeQueueOwnerTtlMs(-1), DEFAULT_QUEUE_OWNER_TTL_MS);
+    assert.equal(normalizeQueueOwnerTtlMs(Number.NaN), DEFAULT_QUEUE_OWNER_TTL_MS);
+    assert.equal(normalizeQueueOwnerTtlMs(Number.POSITIVE_INFINITY), DEFAULT_QUEUE_OWNER_TTL_MS);
+    assert.equal(normalizeQueueOwnerTtlMs(Number.NEGATIVE_INFINITY), DEFAULT_QUEUE_OWNER_TTL_MS);
+    assert.equal(normalizeQueueOwnerTtlMs(1.6), 2);
+    assert.equal(normalizeQueueOwnerTtlMs(15_000), 15_000);
   });
 });
-
-async function loadSessionModule(): Promise<SessionModule> {
-  const cacheBuster = `${Date.now()}-${Math.random()}`;
-  return (await import(`${SESSION_MODULE_URL.href}?session_test=${cacheBuster}`)) as SessionModule;
-}
 
 async function withTempHome(run: (homeDir: string) => Promise<void>): Promise<void> {
   const originalHome = process.env.HOME;

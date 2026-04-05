@@ -67,6 +67,16 @@ test("listBuiltInAgents preserves the required example prefix and alphabetical t
   ]);
 });
 
+test("first five built-in agents are explicitly tested (pi, openclaw, codex, claude, gemini)", () => {
+  const agents = listBuiltInAgents();
+  const firstFive = ["pi", "openclaw", "codex", "claude", "gemini"];
+  assert.deepEqual(agents.slice(0, 5), firstFive);
+  for (const name of firstFive) {
+    assert.ok(AGENT_REGISTRY[name], `${name} should be in AGENT_REGISTRY`);
+    assert.ok(resolveAgentCommand(name), `${name} should resolve to a command`);
+  }
+});
+
 test("default agent is codex", () => {
   assert.equal(DEFAULT_AGENT_NAME, "codex");
 });

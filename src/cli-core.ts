@@ -41,6 +41,7 @@ const TOP_LEVEL_VERBS = new Set([
   "sessions",
   "status",
   "config",
+  "version",
   "help",
 ]);
 

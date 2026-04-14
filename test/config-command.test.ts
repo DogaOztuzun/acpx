@@ -213,3 +213,47 @@ test("config init reports existing config", async () => {
     assert.match(result.stdout, /already exists/);
   });
 });
+
+test("config init --format json outputs JSON", async () => {
+  await withTempHome(async (homeDir) => {
+    const result = await runCli(["config", "init", "--format", "json"], homeDir);
+    assert.equal(result.code, 0, result.stderr);
+
+    const payload = JSON.parse(result.stdout.trim()) as {
+      path?: string;
+      created?: boolean;
+    };
+    assert.equal(typeof payload.path, "string");
+    assert.equal(payload.created, true);
+  });
+});
+
+test("config init --format quiet outputs path only", async () => {
+  await withTempHome(async (homeDir) => {
+    const result = await runCli(["config", "init", "--format", "quiet"], homeDir);
+    assert.equal(result.code, 0, result.stderr);
+
+    const lines = result.stdout.trim().split("\n");
+    assert.equal(lines.length, 1);
+    assert.match(lines[0], /\.acpx\/config\.json$/);
+  });
+});
+
+test("config show --format text handles empty nested objects", async () => {
+  await withTempHome(async (homeDir) => {
+    const result = await runCli(["config", "show", "--format", "text"], homeDir);
+    assert.equal(result.code, 0, result.stderr);
+
+    assert.match(result.stdout, /agents: \{\}/);
+  });
+});
+
+test("config show --format quiet handles empty nested objects", async () => {
+  await withTempHome(async (homeDir) => {
+    const result = await runCli(["config", "show", "--format", "quiet"], homeDir);
+    assert.equal(result.code, 0, result.stderr);
+
+    const lines = result.stdout.trim().split("\n");
+    assert(lines.some((line) => line === "agents\t{}"));
+  });
+});

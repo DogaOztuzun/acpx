@@ -9,9 +9,18 @@ function formatConfigText(payload: Record<string, unknown>, indent = ""): string
     if (value === null || value === undefined) {
       lines.push(`${indent}${key}: null`);
     } else if (typeof value === "object" && !Array.isArray(value)) {
-      lines.push(`${indent}${key}:`);
-      lines.push(formatConfigText(value as Record<string, unknown>, `${indent}  `));
+      const entries = Object.entries(value);
+      if (entries.length === 0) {
+        lines.push(`${indent}${key}: {}`);
+      } else {
+        lines.push(`${indent}${key}:`);
+        lines.push(formatConfigText(value as Record<string, unknown>, `${indent}  `));
+      }
     } else if (Array.isArray(value)) {
+      if (value.length === 0) {
+        lines.push(`${indent}${key}: []`);
+        continue;
+      }
       lines.push(`${indent}${key}:`);
       for (const item of value) {
         if (typeof item === "object" && item !== null) {
@@ -39,7 +48,12 @@ function formatConfigQuiet(payload: Record<string, unknown>, prefix = ""): strin
     if (value === null || value === undefined) {
       lines.push(`${fullKey}\tnull`);
     } else if (typeof value === "object" && !Array.isArray(value)) {
-      lines.push(formatConfigQuiet(value as Record<string, unknown>, fullKey));
+      const entries = Object.entries(value);
+      if (entries.length === 0) {
+        lines.push(`${fullKey}\t{}`);
+      } else {
+        lines.push(formatConfigQuiet(value as Record<string, unknown>, fullKey));
+      }
     } else if (Array.isArray(value)) {
       lines.push(`${fullKey}\t${JSON.stringify(value)}`);
     } else if (typeof value === "string") {
@@ -120,6 +134,7 @@ export function registerConfigCommand(program: Command, config: ResolvedAcpxConf
   configCommand
     .command("init")
     .description("Create global config template")
+    .option("--format <fmt>", "Output format: text, json, quiet", parseOutputFormat)
     .action(async function (this: Command) {
       await handleConfigInit(this, config);
     });

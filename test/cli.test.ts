@@ -91,6 +91,23 @@ test("CLI --version prints package version", async () => {
   });
 });
 
+test("CLI version subcommand prints package version", async () => {
+  await withTempHome(async (homeDir) => {
+    const result = await runCli(["version"], homeDir);
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(result.stderr.trim(), "");
+    assert.equal(result.stdout.trim(), PACKAGE_VERSION);
+  });
+});
+
+test("CLI version subcommand is present in help output", async () => {
+  await withTempHome(async (homeDir) => {
+    const result = await runCli(["version", "--help"], homeDir);
+    assert.equal(result.code, 0, result.stderr);
+    assert.match(result.stdout, /Show the current acpx version/);
+  });
+});
+
 function parseSingleAcpErrorLine(stdout: string): ParsedAcpError {
   const payload = JSON.parse(stdout.trim()) as {
     jsonrpc?: string;

@@ -1,9 +1,73 @@
 import { Command } from "commander";
+import type { OutputFormat } from "../types.js";
 import { initGlobalConfigFile, toConfigDisplay, type ResolvedAcpxConfig } from "./config.js";
-import { resolveGlobalFlags } from "./flags.js";
+import { parseOutputFormat } from "./flags.js";
+
+function formatConfigText(payload: Record<string, unknown>, indent = ""): string {
+  const lines: string[] = [];
+  for (const [key, value] of Object.entries(payload)) {
+    if (value === null || value === undefined) {
+      lines.push(`${indent}${key}: null`);
+    } else if (typeof value === "object" && !Array.isArray(value)) {
+      const entries = Object.entries(value);
+      if (entries.length === 0) {
+        lines.push(`${indent}${key}: {}`);
+      } else {
+        lines.push(`${indent}${key}:`);
+        lines.push(formatConfigText(value as Record<string, unknown>, `${indent}  `));
+      }
+    } else if (Array.isArray(value)) {
+      if (value.length === 0) {
+        lines.push(`${indent}${key}: []`);
+        continue;
+      }
+      lines.push(`${indent}${key}:`);
+      for (const item of value) {
+        if (typeof item === "object" && item !== null) {
+          lines.push(`${indent}  -`);
+          lines.push(formatConfigText(item as Record<string, unknown>, `${indent}    `));
+        } else if (typeof item === "string") {
+          lines.push(`${indent}  - ${item}`);
+        } else {
+          lines.push(`${indent}  - ${JSON.stringify(item)}`);
+        }
+      }
+    } else if (typeof value === "string") {
+      lines.push(`${indent}${key}: ${value}`);
+    } else {
+      lines.push(`${indent}${key}: ${JSON.stringify(value)}`);
+    }
+  }
+  return lines.join("\n");
+}
+
+function formatConfigQuiet(payload: Record<string, unknown>, prefix = ""): string {
+  const lines: string[] = [];
+  for (const [key, value] of Object.entries(payload)) {
+    const fullKey = prefix ? `${prefix}.${key}` : key;
+    if (value === null || value === undefined) {
+      lines.push(`${fullKey}\tnull`);
+    } else if (typeof value === "object" && !Array.isArray(value)) {
+      const entries = Object.entries(value);
+      if (entries.length === 0) {
+        lines.push(`${fullKey}\t{}`);
+      } else {
+        lines.push(formatConfigQuiet(value as Record<string, unknown>, fullKey));
+      }
+    } else if (Array.isArray(value)) {
+      lines.push(`${fullKey}\t${JSON.stringify(value)}`);
+    } else if (typeof value === "string") {
+      lines.push(`${fullKey}\t${value}`);
+    } else {
+      lines.push(`${fullKey}\t${JSON.stringify(value)}`);
+    }
+  }
+  return lines.join("\n");
+}
 
 async function handleConfigShow(command: Command, config: ResolvedAcpxConfig): Promise<void> {
-  const globalFlags = resolveGlobalFlags(command, config);
+  const opts = command.optsWithGlobals();
+  const format: OutputFormat = opts.format ?? "json";
   const payload = {
     ...toConfigDisplay(config),
     paths: {
@@ -16,18 +80,24 @@ async function handleConfigShow(command: Command, config: ResolvedAcpxConfig): P
     },
   };
 
-  if (globalFlags.format === "json") {
+  if (format === "json") {
     process.stdout.write(`${JSON.stringify(payload)}\n`);
     return;
   }
 
-  process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+  if (format === "quiet") {
+    process.stdout.write(`${formatConfigQuiet(payload)}\n`);
+    return;
+  }
+
+  process.stdout.write(`${formatConfigText(payload)}\n`);
 }
 
 async function handleConfigInit(command: Command, config: ResolvedAcpxConfig): Promise<void> {
-  const globalFlags = resolveGlobalFlags(command, config);
+  const opts = command.optsWithGlobals();
+  const format: OutputFormat = opts.format ?? config.format ?? "text";
   const result = await initGlobalConfigFile();
-  if (globalFlags.format === "json") {
+  if (format === "json") {
     process.stdout.write(
       `${JSON.stringify({
         path: result.path,
@@ -36,7 +106,7 @@ async function handleConfigInit(command: Command, config: ResolvedAcpxConfig): P
     );
     return;
   }
-  if (globalFlags.format === "quiet") {
+  if (format === "quiet") {
     process.stdout.write(`${result.path}\n`);
     return;
   }
@@ -56,6 +126,7 @@ export function registerConfigCommand(program: Command, config: ResolvedAcpxConf
   configCommand
     .command("show")
     .description("Show resolved config")
+    .option("--format <fmt>", "Output format: text, json, quiet", parseOutputFormat)
     .action(async function (this: Command) {
       await handleConfigShow(this, config);
     });
@@ -63,11 +134,14 @@ export function registerConfigCommand(program: Command, config: ResolvedAcpxConf
   configCommand
     .command("init")
     .description("Create global config template")
+    .option("--format <fmt>", "Output format: text, json, quiet", parseOutputFormat)
     .action(async function (this: Command) {
       await handleConfigInit(this, config);
     });
 
-  configCommand.action(async function (this: Command) {
-    await handleConfigShow(this, config);
-  });
+  configCommand
+    .option("--format <fmt>", "Output format: text, json, quiet", parseOutputFormat)
+    .action(async function (this: Command) {
+      await handleConfigShow(this, config);
+    });
 }

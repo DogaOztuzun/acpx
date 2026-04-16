@@ -1,10 +1,13 @@
-// oxlint-disable typescript/no-explicit-any
-export interface DebouncedFunction<T extends (...args: any[]) => any> {
+export interface DebouncedFunction<
+  // oxlint-disable-next-line typescript/no-explicit-any
+  T extends (...args: any[]) => any,
+> {
   (...args: Parameters<T>): void;
   cancel(): void;
   flush(): void;
 }
 
+// oxlint-disable-next-line typescript/no-explicit-any
 export function debounce<T extends (...args: any[]) => any>(
   fn: T,
   waitMs: number,

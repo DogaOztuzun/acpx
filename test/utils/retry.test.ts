@@ -162,19 +162,17 @@ test("retry succeeds on second attempt", async () => {
 
 test("retry works with non-Error thrown values", async () => {
   let caught: unknown;
-  await assert.rejects(
-    async () => {
-      await retry(
-        async () => {
-          throw "string error";
-        },
-        { maxAttempts: 2 },
-      ).catch((e) => {
-        caught = e;
-        throw e;
-      });
-    },
-  );
+  await assert.rejects(async () => {
+    await retry(
+      async () => {
+        throw "string error";
+      },
+      { maxAttempts: 2 },
+    ).catch((e) => {
+      caught = e;
+      throw e;
+    });
+  });
   assert.equal(caught, "string error");
 });
 

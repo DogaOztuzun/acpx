@@ -4,16 +4,13 @@ export interface RetryOptions {
   maxDelay?: number;
 }
 
-export async function retry<T>(
-  fn: () => Promise<T>,
-  opts?: RetryOptions,
-): Promise<T> {
+export async function retry<T>(fn: () => Promise<T>, opts?: RetryOptions): Promise<T> {
   const maxAttempts = opts?.maxAttempts ?? 3;
   const baseDelay = opts?.baseDelay ?? 100;
   const maxDelay = opts?.maxDelay ?? 5000;
 
-  if (maxAttempts === 0) {
-    throw new Error("Retry failed: maxAttempts is 0");
+  if (maxAttempts < 1) {
+    throw new Error("Retry failed: maxAttempts must be positive");
   }
 
   let lastError: unknown;

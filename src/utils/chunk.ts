@@ -1,4 +1,8 @@
 export function chunk<T>(array: T[], size: number): T[][] {
+  if (array == null) {
+    throw new TypeError("array must not be null or undefined");
+  }
+
   if (!Number.isInteger(size) || size <= 0) {
     throw new TypeError("size must be a positive integer");
   }

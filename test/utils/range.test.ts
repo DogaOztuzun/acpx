@@ -35,3 +35,13 @@ test("range handles negative to positive ranges", () => {
 test("range handles floating point values", () => {
   assert.deepEqual(range(0, 2, 0.5), [0, 0.5, 1, 1.5]);
 });
+
+test("range returns empty array when start > end with positive step", () => {
+  assert.deepEqual(range(5, 0, 1), []);
+  assert.deepEqual(range(10, 5, 2), []);
+});
+
+test("range returns empty array when start < end with negative step", () => {
+  assert.deepEqual(range(0, 5, -1), []);
+  assert.deepEqual(range(3, 10, -2), []);
+});

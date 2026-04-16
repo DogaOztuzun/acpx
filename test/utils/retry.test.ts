@@ -26,7 +26,7 @@ test("retry throws immediately when maxAttempts is 0", async () => {
         },
         { maxAttempts: 0 },
       ),
-    /maxAttempts is 0/,
+    /maxAttempts must be positive/,
   );
 });
 

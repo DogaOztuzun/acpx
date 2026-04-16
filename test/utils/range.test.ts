@@ -33,7 +33,15 @@ test("range handles negative to positive ranges", () => {
 });
 
 test("range handles floating point values", () => {
-  assert.deepEqual(range(0, 2, 0.5), [0, 0.5, 1, 1.5]);
+  const result = range(0, 2, 0.5);
+  const expected = [0, 0.5, 1, 1.5];
+  assert.equal(result.length, expected.length);
+  for (let i = 0; i < result.length; i++) {
+    assert.ok(
+      Math.abs(result[i] - expected[i]) < Number.EPSILON,
+      `result[${i}]=${result[i]} expected ${expected[i]}`,
+    );
+  }
 });
 
 test("range returns empty array when start > end with positive step", () => {

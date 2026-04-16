@@ -32,3 +32,9 @@ test("clamp throws RangeError when min > max", () => {
 test("clamp returns NaN when value is NaN", () => {
   assert.ok(Number.isNaN(clamp(NaN, 0, 10)));
 });
+
+test("clamp handles zero-width range (min equals max)", () => {
+  assert.equal(clamp(5, 10, 10), 10);
+  assert.equal(clamp(10, 10, 10), 10);
+  assert.equal(clamp(15, 10, 10), 10);
+});

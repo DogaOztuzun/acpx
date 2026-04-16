@@ -6,6 +6,8 @@ Repo: https://github.com/openclaw/acpx
 
 ### Changes
 
+- Utils/clamp: add a `clamp` utility function for constraining a value within a range. Thanks @contributor.
+
 - Conformance/ACP: add a data-driven ACP core v1 conformance suite with CI smoke coverage, nightly coverage, and a hardened runner that reports startup failures cleanly and scopes filesystem checks to the session cwd. (#130) Thanks @lynnzc.
 - CLI/prompts: add `--prompt-retries` to retry transient prompt failures with exponential backoff while preserving strict JSON behavior and avoiding replay after prompt side effects. (#142) Thanks @lupuletic and @dutifulbob.
 - Output: add `--suppress-reads` to mask raw file-read bodies in text and JSON output while keeping normal tool activity visible. (#136) Thanks @hayatosc.

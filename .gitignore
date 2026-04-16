@@ -5,3 +5,4 @@ examples/flows/replay-viewer/dist/
 *.tgz
 .worktrees/
 runs/
+agent.log

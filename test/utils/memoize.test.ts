@@ -26,10 +26,10 @@ test("memoize caches different args independently", () => {
   const result2 = memoized("b");
   const result3 = memoized("a");
 
-  assert.equal(result1, "A");
-  assert.equal(result2, "B");
-  assert.equal(result3, "A");
-  assert.equal(callCount, 2);
+  assert.strictEqual(result1, "A");
+  assert.strictEqual(result2, "B");
+  assert.strictEqual(result3, "A");
+  assert.strictEqual(callCount, 2);
 });
 
 test("memoize calls fn exactly once per unique arg", () => {
@@ -47,7 +47,7 @@ test("memoize calls fn exactly once per unique arg", () => {
   memoized(2);
   memoized(1);
 
-  assert.equal(callCount, 3);
+  assert.strictEqual(callCount, 3);
 });
 
 test("memoize throws TypeError when fn is not a function", () => {
@@ -69,12 +69,57 @@ test("memoize does not cache errors thrown by fn", () => {
   const memoized = memoize(fn);
 
   assert.throws(() => memoized("fail"), Error, "intentional error");
-  assert.equal(callCount, 1);
+  assert.strictEqual(callCount, 1);
 
   assert.throws(() => memoized("fail"), Error, "intentional error");
-  assert.equal(callCount, 2);
+  assert.strictEqual(callCount, 2);
 
   const result = memoized("success");
-  assert.equal(result, "SUCCESS");
-  assert.equal(callCount, 3);
+  assert.strictEqual(result, "SUCCESS");
+  assert.strictEqual(callCount, 3);
+});
+
+test("memoize correctly caches falsy return values", () => {
+  let callCount = 0;
+  const fn = (arg: string) => {
+    callCount++;
+    if (arg === "undefined") return undefined;
+    if (arg === "null") return null;
+    if (arg === "zero") return 0;
+    if (arg === "empty") return "";
+    return arg;
+  };
+  const memoized = memoize(fn);
+
+  const resultUndefined = memoized("undefined");
+  assert.strictEqual(resultUndefined, undefined);
+  assert.strictEqual(callCount, 1);
+
+  const cachedUndefined = memoized("undefined");
+  assert.strictEqual(cachedUndefined, undefined);
+  assert.strictEqual(callCount, 1);
+
+  const resultNull = memoized("null");
+  assert.strictEqual(resultNull, null);
+  assert.strictEqual(callCount, 2);
+
+  const cachedNull = memoized("null");
+  assert.strictEqual(cachedNull, null);
+  assert.strictEqual(callCount, 2);
+
+  const resultZero = memoized("zero");
+  assert.strictEqual(resultZero, 0);
+  assert.strictEqual(callCount, 3);
+
+  const cachedZero = memoized("zero");
+  assert.strictEqual(cachedZero, 0);
+  assert.strictEqual(callCount, 3);
+
+  const resultEmpty = memoized("empty");
+  assert.strictEqual(resultEmpty, "");
+  assert.strictEqual(callCount, 4);
+
+  const cachedEmpty = memoized("empty");
+  assert.strictEqual(cachedEmpty, "");
+  assert.strictEqual(callCount, 4);
 });

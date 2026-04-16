@@ -53,3 +53,21 @@ test("range returns empty array when start < end with negative step", () => {
   assert.deepEqual(range(0, 5, -1), []);
   assert.deepEqual(range(3, 10, -2), []);
 });
+
+test("range throws TypeError when start, end, or step is NaN", () => {
+  assert.throws(() => range(NaN, 5), TypeError);
+  assert.throws(() => range(0, NaN), TypeError);
+  assert.throws(() => range(0, 5, NaN), TypeError);
+});
+
+test("range handles Infinity gracefully", () => {
+  assert.deepEqual(range(Infinity, Infinity), []);
+  assert.deepEqual(range(-Infinity, Infinity), []);
+  assert.deepEqual(range(0, Infinity), []);
+  assert.deepEqual(range(Infinity, 0), []);
+});
+
+test("range handles non-integer start with integer step", () => {
+  const result = range(0.5, 5, 1);
+  assert.deepEqual(result, [0.5, 1.5, 2.5, 3.5, 4.5]);
+});

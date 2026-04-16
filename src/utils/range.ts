@@ -10,6 +10,10 @@ export function range(start: number, end: number, step: number = 1): number[] {
     throw new RangeError("step cannot be zero");
   }
 
+  if (Number.isNaN(start) || Number.isNaN(end) || Number.isNaN(step)) {
+    throw new TypeError("start, end, and step must be numbers");
+  }
+
   const result: number[] = [];
 
   if (step > 0) {

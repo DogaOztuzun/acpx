@@ -145,3 +145,49 @@ test("debounce flush: timer does not fire after flush", (t, done) => {
     done();
   }, 100);
 });
+
+test("debounce flush after cancel: no-op", (t, done) => {
+  let callCount = 0;
+  const fn = () => callCount++;
+  const debounced = debounce(fn, 50);
+
+  debounced();
+  debounced.cancel();
+  debounced.flush();
+
+  setTimeout(() => {
+    assert.equal(callCount, 0);
+    done();
+  }, 100);
+});
+
+test("debounce cancel after flush: no-op", (t, done) => {
+  let callCount = 0;
+  const fn = () => callCount++;
+  const debounced = debounce(fn, 50);
+
+  debounced();
+  debounced.flush();
+  debounced.cancel();
+
+  setTimeout(() => {
+    assert.equal(callCount, 1);
+    done();
+  }, 100);
+});
+
+test("debounce multiple flush calls: only first invokes", (t, done) => {
+  let callCount = 0;
+  const fn = () => callCount++;
+  const debounced = debounce(fn, 50);
+
+  debounced();
+  debounced.flush();
+  debounced.flush();
+  debounced.flush();
+
+  setTimeout(() => {
+    assert.equal(callCount, 1);
+    done();
+  }, 100);
+});

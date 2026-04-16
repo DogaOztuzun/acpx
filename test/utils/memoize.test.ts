@@ -57,7 +57,7 @@ test("memoize throws TypeError when fn is not a function", () => {
   assert.throws(() => memoize("not a function" as unknown as (arg: string) => string), TypeError);
 });
 
-test("memoize does not cache errors thrown by fn", () => {
+test("memoize caches errors thrown by fn", () => {
   let callCount = 0;
   const fn = (arg: string) => {
     callCount++;
@@ -72,11 +72,28 @@ test("memoize does not cache errors thrown by fn", () => {
   assert.strictEqual(callCount, 1);
 
   assert.throws(() => memoized("fail"), Error, "intentional error");
-  assert.strictEqual(callCount, 2);
+  assert.strictEqual(callCount, 1);
 
   const result = memoized("success");
   assert.strictEqual(result, "SUCCESS");
-  assert.strictEqual(callCount, 3);
+  assert.strictEqual(callCount, 2);
+});
+
+test("memoize correctly caches NaN as a Map key", () => {
+  let callCount = 0;
+  const fn = (arg: number) => {
+    callCount++;
+    return NaN;
+  };
+  const memoized = memoize(fn);
+
+  const result1 = memoized(NaN);
+  assert.strictEqual(callCount, 1);
+  assert.strictEqual(result1, NaN);
+
+  const result2 = memoized(NaN);
+  assert.strictEqual(callCount, 1);
+  assert.strictEqual(result2, NaN);
 });
 
 test("memoize correctly caches falsy return values", () => {

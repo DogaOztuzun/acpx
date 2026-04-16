@@ -7,7 +7,7 @@ export function memoize<A extends string | number, R>(fn: (arg: A) => R): (arg: 
 
   return (arg: A): R => {
     if (cache.has(arg)) {
-      return cache.get(arg)!;
+      return cache.get(arg) as R;
     }
     const result = fn(arg);
     cache.set(arg, result);

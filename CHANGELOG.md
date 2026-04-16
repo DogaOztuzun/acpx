@@ -6,6 +6,7 @@ Repo: https://github.com/openclaw/acpx
 
 ### Changes
 
+- Utils/memoize: add a `memoize` utility function for caching function results by argument. Thanks @contributor.
 - Utils/clamp: add a `clamp` utility function for constraining a value within a range. Thanks @contributor.
 
 - Conformance/ACP: add a data-driven ACP core v1 conformance suite with CI smoke coverage, nightly coverage, and a hardened runner that reports startup failures cleanly and scopes filesystem checks to the session cwd. (#130) Thanks @lynnzc.

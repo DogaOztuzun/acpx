@@ -56,3 +56,25 @@ test("memoize throws TypeError when fn is not a function", () => {
   assert.throws(() => memoize(42 as unknown as (arg: string) => string), TypeError);
   assert.throws(() => memoize("not a function" as unknown as (arg: string) => string), TypeError);
 });
+
+test("memoize does not cache errors thrown by fn", () => {
+  let callCount = 0;
+  const fn = (arg: string) => {
+    callCount++;
+    if (arg === "fail") {
+      throw new Error("intentional error");
+    }
+    return arg.toUpperCase();
+  };
+  const memoized = memoize(fn);
+
+  assert.throws(() => memoized("fail"), Error, "intentional error");
+  assert.equal(callCount, 1);
+
+  assert.throws(() => memoized("fail"), Error, "intentional error");
+  assert.equal(callCount, 2);
+
+  const result = memoized("success");
+  assert.equal(result, "SUCCESS");
+  assert.equal(callCount, 3);
+});

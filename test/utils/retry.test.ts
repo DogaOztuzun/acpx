@@ -30,6 +30,35 @@ test("retry throws immediately when maxAttempts is 0", async () => {
   );
 });
 
+test("retry throws when maxAttempts is negative", async () => {
+  await assert.rejects(
+    async () =>
+      retry(
+        async () => {
+          throw new Error("should not be called");
+        },
+        { maxAttempts: -1 },
+      ),
+    /maxAttempts must be positive/,
+  );
+});
+
+test("retry attempts exactly once when maxAttempts is 1", async () => {
+  let callCount = 0;
+  await assert.rejects(
+    async () =>
+      retry(
+        async () => {
+          callCount++;
+          throw new Error("fail");
+        },
+        { maxAttempts: 1 },
+      ),
+    Error,
+  );
+  assert.equal(callCount, 1);
+});
+
 test("retry throws last error when all attempts fail", async () => {
   const error = new Error("persistent failure");
   await assert.rejects(
@@ -134,15 +163,17 @@ test("retry succeeds on second attempt", async () => {
 test("retry works with non-Error thrown values", async () => {
   let caught: unknown;
   await assert.rejects(
-    retry(
-      async () => {
-        throw "string error";
-      },
-      { maxAttempts: 2 },
-    ).catch((e) => {
-      caught = e;
-      throw e;
-    }),
+    async () => {
+      await retry(
+        async () => {
+          throw "string error";
+        },
+        { maxAttempts: 2 },
+      ).catch((e) => {
+        caught = e;
+        throw e;
+      });
+    },
   );
   assert.equal(caught, "string error");
 });

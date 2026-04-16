@@ -91,36 +91,57 @@ test("debounce 0 delay: still defers to next tick", (t, done) => {
   }, 10);
 });
 
-test("debounce negative delay: throws RangeError", () => {
+test("debounce negative delay: throws RangeError", (t, done) => {
   assert.throws(() => debounce(() => {}, -1), RangeError);
+  done();
 });
 
-test("debounce NaN delay: throws RangeError", () => {
+test("debounce NaN delay: throws RangeError", (t, done) => {
   assert.throws(() => debounce(() => {}, NaN), RangeError);
+  done();
 });
 
-test("debounce Infinity delay: throws RangeError", () => {
+test("debounce Infinity delay: throws RangeError", (t, done) => {
   assert.throws(() => debounce(() => {}, Infinity), RangeError);
+  done();
 });
 
-test("debounce cancel when nothing is pending: no-op", () => {
+test("debounce cancel when nothing is pending: no-op", (t, done) => {
   const debounced = debounce(() => {}, 50);
   debounced.cancel();
   debounced.cancel();
+  done();
 });
 
-test("debounce flush when nothing is pending: no-op", () => {
+test("debounce flush when nothing is pending: no-op", (t, done) => {
   const debounced = debounce(() => {}, 50);
   debounced.flush();
   debounced.flush();
+  done();
 });
 
-test("debounced function has cancel method", () => {
+test("debounced function has cancel method", (t, done) => {
   const debounced = debounce(() => {}, 50);
   assert.equal(typeof debounced.cancel, "function");
+  done();
 });
 
-test("debounced function has flush method", () => {
+test("debounced function has flush method", (t, done) => {
   const debounced = debounce(() => {}, 50);
   assert.equal(typeof debounced.flush, "function");
+  done();
+});
+
+test("debounce flush: timer does not fire after flush", (t, done) => {
+  let callCount = 0;
+  const fn = () => callCount++;
+  const debounced = debounce(fn, 50);
+
+  debounced();
+  debounced.flush();
+
+  setTimeout(() => {
+    assert.equal(callCount, 1);
+    done();
+  }, 100);
 });

@@ -60,3 +60,10 @@ test("pick handles duplicate keys in array", () => {
   const obj = { a: 1, b: 2 };
   assert.deepEqual(pick(obj, ["a", "a", "b"]), { a: 1, b: 2 });
 });
+
+test("pick does not pick inherited properties", () => {
+  const parent = { inherited: 1 };
+  const child = Object.create(parent);
+  child.own = 2;
+  assert.deepEqual(pick(child, ["own", "inherited"]), { own: 2 });
+});

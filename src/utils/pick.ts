@@ -1,10 +1,7 @@
-export function pick<T extends object>(
-  obj: T,
-  keys: (keyof T)[],
-): Partial<T> {
+export function pick<T extends object>(obj: T, keys: (keyof T)[]): Partial<T> {
   const result = {} as Partial<T>;
   for (const key of keys) {
-    if (key in obj) {
+    if (Object.hasOwn(obj, key)) {
       result[key] = obj[key];
     }
   }

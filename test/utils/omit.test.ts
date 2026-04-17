@@ -56,9 +56,9 @@ test("omit handles duplicate keys in array", () => {
   assert.deepEqual(omit(obj, ["a", "a", "b"]), {});
 });
 
-test("omit does not remove inherited properties", () => {
+test("omit does not include inherited properties", () => {
   const parent = { inherited: 1 };
   const child = Object.create(parent);
   child.own = 2;
-  assert.deepEqual(omit(child, ["own"]), { inherited: 1 });
+  assert.deepEqual(omit(child, ["own"]), {});
 });

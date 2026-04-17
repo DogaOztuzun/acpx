@@ -47,6 +47,6 @@ test("pick works with various value types", () => {
 });
 
 test("pick returns empty object when all keys are nonexistent", () => {
-  const obj = { a: 1 };
-  assert.deepEqual(pick(obj, []), {});
+  const obj: { a: number; [key: string]: unknown } = { a: 1 };
+  assert.deepEqual(pick(obj, ["x", "y"]), {});
 });

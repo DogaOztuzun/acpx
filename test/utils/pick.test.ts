@@ -50,3 +50,13 @@ test("pick returns empty object when all keys are nonexistent", () => {
   const obj: { a: number; [key: string]: unknown } = { a: 1 };
   assert.deepEqual(pick(obj, ["x", "y"]), {});
 });
+
+test("pick handles empty object with non-empty keys", () => {
+  const obj: Record<string, number> = {};
+  assert.deepEqual(pick(obj, ["a", "b"]), {});
+});
+
+test("pick handles duplicate keys in array", () => {
+  const obj = { a: 1, b: 2 };
+  assert.deepEqual(pick(obj, ["a", "a", "b"]), { a: 1, b: 2 });
+});
